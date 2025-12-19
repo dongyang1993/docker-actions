@@ -1,0 +1,42 @@
+name: Download Docker Image
+# 配置为手动触发，可以在界面输入镜像名称
+on:
+  workflow_dispatch:
+    inputs:
+      image_name:
+        description: '请输入镜像名称 (例如: nginx:latest 或 alpine)'
+        required: true
+        default: 'nginx:latest'
+
+jobs:
+  pull-and-save:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code (Optional)
+        uses: actions/checkout@v4
+        # 这一步其实不是必须的，但为了规范通常加上
+
+      - name: Pull Docker Image
+        run: |
+          echo "正在拉取镜像: ${{ inputs.image_name }}"
+          docker pull ${{ inputs.image_name }}
+
+      - name: Save Image as Tar.gz
+        id: save
+        run: |
+          # 将镜像名中的斜杠和冒号替换为下划线，作为文件名
+          FILENAME=$(echo "${{ inputs.image_name }}" | tr '/' '_' | tr ':' '_').tar.gz
+          
+          echo "正在导出镜像为: $FILENAME"
+          # 使用 docker save 导出并通过 gzip 压缩
+          docker save ${{ inputs.image_name }} | gzip > $FILENAME
+          
+          # 将文件名输出到环境变量，供后续步骤使用
+          echo "FILE_PATH=$FILENAME" >> $GITHUB_ENV
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: ${{ env.FILE_PATH }}
+          retention-days: 1 # 设置保留1天，节省空间
