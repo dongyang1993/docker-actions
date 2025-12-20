@@ -42,8 +42,8 @@ jobs:
       # 2. 预检查：确保 Dockerfile 存在，避免报错
       - name: Check Dockerfile existence
         run: |
-          if [ ! -f "./${{ github.event.inputs.component }}/Dockerfile" ]; then
-            echo "❌ Error: ./${{ github.event.inputs.component }}/Dockerfile 不存在！"
+          if [ ! -f "./dockerfile/${{ github.event.inputs.component }}/Dockerfile" ]; then
+            echo "❌ Error: ./dockerfile/${{ github.event.inputs.component }}/Dockerfile 不存在！"
             exit 1
           fi
 
@@ -51,7 +51,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: ./${{ github.event.inputs.component }}/
+          context: ./dockerfile/${{ github.event.inputs.component }}/
           file: ./${{ github.event.inputs.component }}/Dockerfile
           push: true
           tags: |
