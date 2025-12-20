@@ -6,44 +6,33 @@ on:
     paths:
       - "images.txt"
 
+# 防止并发运行时产生冲突，同一分支只允许一个任务运行
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   sync-images:
     runs-on: ubuntu-latest
+    # 设置超时时间，防止脚本卡死消耗额度
+    timeout-minutes: 60
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Install Skopeo
         run: |
-          # 检查 Skopeo 是否已安装，未安装则安装
-          if ! command -v skopeo &> /dev/null; then
-            echo "Installing Skopeo..."
-            sudo apt-get update
-            sudo apt-get install -y skopeo
-          else
-            echo "Skopeo is already installed."
-            skopeo --version
-          fi
+          # 安装 Skopeo 工具
+          sudo apt-get update
+          sudo apt-get install -y skopeo
 
       - name: Sync Images (Multi-Arch)
         run: |
-          # 0. 预检查
+          # 检查 images.txt 是否存在
           if [ ! -f images.txt ]; then
-            echo "Error: images.txt not found!"
+            echo "images.txt not found!"
             exit 1
           fi
-
-          # 1. 登录阿里云 (避免在循环中重复传参，且避免日志泄露风险)
-          echo "Logging into Aliyun..."
-          skopeo login -u "${{ secrets.ALIYUN_USERNAME }}" -p "${{ secrets.ALIYUN_PASSWORD }}" ${{ secrets.ALIYUN_REGISTRY }}
-
-          # 定义统计变量
-          TOTAL_COUNT=0
-          SUCCESS_COUNT=0
-          FAIL_COUNT=0
-          FAILED_IMAGES=""
-
-          echo "Starting sync process..."
 
           while IFS= read -r line || [[ -n "$line" ]]; do
             # 去除首尾空格
@@ -54,67 +43,29 @@ jobs:
               continue
             fi
 
-            ((TOTAL_COUNT++))
             echo "----------------------------------------"
-            echo "[${TOTAL_COUNT}] Processing: $image"
+            echo "正在处理镜像 (多架构): $image"
 
-            # 2. 优化命名逻辑：防止重名覆盖
-            # 将 'bitnami/mysql:8.0' 转换为 'bitnami_mysql:8.0'
-            # 将 'nginx:latest' 保持为 'nginx:latest' (因为没有斜杠)
-            # 如果源是 'gcr.io/google-containers/pause:3.2' -> 'gcr.io_google-containers_pause:3.2'
-            # 这样可以最大程度保留原始信息且不冲突
+            # 处理目标镜像名称
+            # 逻辑：提取镜像名最后一部分
+            image_name_tag=$(echo "$image" | tr '/' '_')
 
-            # 移除 Docker Hub 的官方前缀 library/ (可选，看你喜好)
-            clean_image=${image#"library/"}
+            # 构造阿里云目标地址
+            new_image="${{ secrets.ALIYUN_REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/$image_name_tag"
 
-            # 将名称中的 / 替换为 _
-            # 逻辑：提取镜像名（不含tag），替换/，然后再拼回tag
-            # 这里简单处理：直接把整个字符串的 / 换成 _ (除了 tag 部分)
-            # 但更稳妥的是只处理 namespace 部分
+            echo "源: $image"
+            echo "目标: $new_image"
 
-            # 简单策略：保留 Tag，将镜像名部分的 / 替换为 _
-            IMG_NAME=$(echo "$image" | cut -d':' -f1)
-            IMG_TAG=$(echo "$image" | cut -d':' -f2)
+            # 使用 Skopeo 复制
+            # --all: 复制所有架构 (amd64, arm64, etc.)
+            # --src-tls-verify=false: 有些源(如http)可能需要关闭校验，通常dockerhub不需要，可根据情况删除
+            # --dest-creds: 指定阿里云的账号密码
 
-            # 如果没有 tag，默认 latest
-            if [ "$IMG_NAME" == "$IMG_TAG" ]; then IMG_TAG="latest"; fi
+            skopeo copy --all --retry-times 3 \
+              --dest-creds "${{ secrets.ALIYUN_USERNAME }}:${{ secrets.ALIYUN_PASSWORD }}" \
+              docker://$image \
+              docker://$new_image
 
-            # 替换镜像名中的斜杠
-            #SAFE_NAME=$(echo "$IMG_NAME" | tr '/' '_')
-            SAFE_NAME=$(echo "$IMG_NAME" | tr '/' '_')
-
-            # 构造最终目标
-            TARGET_IMAGE="${{ secrets.ALIYUN_REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/${SAFE_NAME}:${IMG_TAG}"
-
-            echo "Src: $image"
-            echo "Dst: $TARGET_IMAGE"
-
-            # 3. 执行同步 (增加重试机制)
-            # --retry-times 3: 失败重试3次
-            # --insecure-policy: 允许某些非标准策略（可选）
-            # --format=docker: 确保输出格式兼容性
-
-            if skopeo copy --all --retry-times 3 --format=docker docker://$image docker://$TARGET_IMAGE; then
-              echo "✅ Success: $image"
-              ((SUCCESS_COUNT++))
-            else
-              echo "❌ Failed: $image"
-              ((FAIL_COUNT++))
-              FAILED_IMAGES+="$image\n"
-            fi
+            echo "同步完成: $new_image"
 
           done < images.txt
-
-          echo "========================================"
-          echo "Sync Summary:"
-          echo "Total: $TOTAL_COUNT"
-          echo "Success: $SUCCESS_COUNT"
-          echo "Failed: $FAIL_COUNT"
-
-          if [ "$FAIL_COUNT" -gt 0 ]; then
-            echo "The following images failed to sync:"
-            echo -e "$FAILED_IMAGES"
-            exit 1
-          else
-            echo "🎉 All images synced successfully!"
-          fi
