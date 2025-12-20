@@ -52,7 +52,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./dockerfile/${{ github.event.inputs.component }}/
-          file: ./${{ github.event.inputs.component }}/Dockerfile
+          file: ./dockerfile/${{ github.event.inputs.component }}/Dockerfile
           push: true
           tags: |
             ${{ secrets.ALIYUN_REGISTRY }}/${{ env.NAMESPACE }}/${{ github.event.inputs.component }}:${{ github.event.inputs.image_tag }}
