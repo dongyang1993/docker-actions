@@ -1,0 +1,65 @@
+name: Sync Images to Aliyun
+
+on:
+  workflow_dispatch: # 支持手动触发
+  push:
+    paths:
+      - 'images.txt' # 当 images.txt 文件发生变化时自动触发
+
+jobs:
+  sync-images:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Login to Aliyun Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ALIYUN_REGISTRY }}
+          username: ${{ secrets.ALIYUN_USERNAME }}
+          password: ${{ secrets.ALIYUN_PASSWORD }}
+
+      - name: Pull, Tag and Push Images
+        run: |
+          # 读取 images.txt 文件
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            # 去除首尾空格
+            image=$(echo "$line" | xargs)
+            
+            # 跳过空行和以 # 开头的注释行
+            if [[ -z "$image" || "$image" == \#* ]]; then
+              continue
+            fi
+
+            echo "----------------------------------------"
+            echo "正在处理镜像: $image"
+
+            # 1. 拉取原始镜像
+            docker pull $image
+
+            # 2. 处理镜像名称
+            # 逻辑：提取镜像名最后一部分（例如 gcr.io/test/app:v1 -> app:v1）
+            # 注意：这会将所有镜像都推送到同一个命名空间下，可能会有重名风险
+            image_name_tag=$(echo "$image" | awk -F'/' '{print $NF}')
+            
+            # 3. 构造新的镜像地址
+            # 格式: registry.cn-hangzhou.aliyuncs.com/命名空间/镜像名:标签
+            new_image="${{ secrets.ALIYUN_REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/$image_name_tag"
+            
+            echo "源镜像: $image"
+            echo "目标镜像: $new_image"
+
+            # 4. 打标签
+            docker tag $image $new_image
+
+            # 5. 推送到阿里云
+            echo "正在推送到阿里云..."
+            docker push $new_image
+
+            # 6. 清理空间 (防止 Runner 磁盘爆满)
+            docker rmi $new_image
+            docker rmi $image
+            echo "完成: $image"
+            
+          done < images.txt
