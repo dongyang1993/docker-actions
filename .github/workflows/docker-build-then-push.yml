@@ -25,7 +25,7 @@ jobs:
     
     # 定义环境变量方便复用
     env:
-      NAMESPACE: 你的命名空间  # 修改为你的阿里云命名空间
+      NAMESPACE: dongyang  # 修改为你的阿里云命名空间
 
     steps:
       - name: Checkout code
