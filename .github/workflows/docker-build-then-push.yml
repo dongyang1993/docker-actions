@@ -24,8 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     
     # 定义环境变量方便复用
-    #env:
-    #  NAMESPACE: dongyang  # 修改为你的阿里云命名空间
+    env:
+      NAMESPACE: dongyang  # 修改为你的阿里云命名空间
 
     steps:
       - name: Checkout code
