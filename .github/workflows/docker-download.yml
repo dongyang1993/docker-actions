@@ -4,9 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       image_name:
-        description: '请输入镜像名称 (例如: nginx:latest 或 alpine)'
+        description: "请输入镜像名称 (例如: nginx:latest 或 alpine)"
         required: true
-        default: 'nginx:latest'
+        default: "nginx:latest"
+      platform:
+        description: "选择目标架构"
+        required: true
+        default: "linux/amd64"
+        type: choice
+        options:
+          - linux/amd64
+          - linux/arm64
 
 jobs:
   pull-and-save:
@@ -19,18 +27,24 @@ jobs:
       - name: Pull Docker Image
         run: |
           echo "正在拉取镜像: ${{ inputs.image_name }}"
-          docker pull ${{ inputs.image_name }}
+          echo "目标架构: ${{ inputs.platform }}"
+          # 使用 --platform 参数拉取指定架构
+          docker pull --platform ${{ inputs.platform }} ${{ inputs.image_name }}
 
       - name: Save Image as Tar.gz
         id: save
         run: |
-          # 将镜像名中的斜杠和冒号替换为下划线，作为文件名
-          FILENAME=$(echo "${{ inputs.image_name }}" | tr '/' '_' | tr ':' '_').tar.gz
-          
+          # 处理文件名：将斜杠、冒号替换为下划线
+          # 提取架构名称 (例如 linux/arm64 -> arm64) 放入文件名
+          IMG_SAFE=$(echo "${{ inputs.image_name }}" | tr '/' '_' | tr ':' '_')
+          PLATFORM_SAFE=$(echo "${{ inputs.platform }}" | sed 's/.*\///')
+
+          FILENAME="${IMG_SAFE}_${PLATFORM_SAFE}.tar.gz"
+
           echo "正在导出镜像为: $FILENAME"
           # 使用 docker save 导出并通过 gzip 压缩
           docker save ${{ inputs.image_name }} | gzip > $FILENAME
-          
+
           # 将文件名输出到环境变量，供后续步骤使用
           echo "FILE_PATH=$FILENAME" >> $GITHUB_ENV
 
