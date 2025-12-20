@@ -1,12 +1,12 @@
-name: Manual Component Build
+name: Manual Component Build Multi Arch
 
 on:
   workflow_dispatch:
     inputs:
       component:
-        description: '🚀 选择要构建的组件'
+        description: "🚀 选择要构建的组件"
         required: true
-        default: 'nginx'
+        default: "nginx"
         type: choice
         options:
           - nginx
@@ -14,18 +14,18 @@ on:
           - nodejs
           - python
       image_tag:
-        description: '🏷️ 镜像版本号 (默认为 latest)'
+        description: "🏷️ 镜像版本号 (默认为 latest)"
         required: true
-        default: 'latest'
+        default: "latest"
         type: string
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    
+
     # 定义环境变量方便复用
     env:
-      NAMESPACE: dongyang  # 修改为你的阿里云命名空间
+      NAMESPACE: dongyang # 修改为你的阿里云命名空间
 
     steps:
       - name: Checkout code
@@ -47,7 +47,6 @@ jobs:
             exit 1
           fi
       # --- 多架构支持核心步骤开始 ---
-      
       # 3. 设置 QEMU (用于模拟 ARM 架构环境)
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -57,7 +56,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       # --- 多架构支持核心步骤结束 ---
-      
+
       # 5. 构建并推送多架构镜像
       - name: Build and push
         uses: docker/build-push-action@v5
