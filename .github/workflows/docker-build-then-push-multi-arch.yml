@@ -46,14 +46,27 @@ jobs:
             echo "❌ Error: ./dockerfile/${{ github.event.inputs.component }}/Dockerfile 不存在！"
             exit 1
           fi
+      # --- 多架构支持核心步骤开始 ---
+      
+      # 3. 设置 QEMU (用于模拟 ARM 架构环境)
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-      # 3. 构建并推送
+      # 4. 设置 Docker Buildx (支持多平台构建的关键工具)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # --- 多架构支持核心步骤结束 ---
+      
+      # 5. 构建并推送多架构镜像
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: ./dockerfile/${{ github.event.inputs.component }}/
           file: ./dockerfile/${{ github.event.inputs.component }}/Dockerfile
           push: true
+          # 关键修改：指定构建 amd64 和 arm64 两个版本
+          platforms: linux/amd64,linux/arm64/v8
           tags: |
             ${{ secrets.ALIYUN_REGISTRY }}/${{ env.NAMESPACE }}/${{ github.event.inputs.component }}:${{ github.event.inputs.image_tag }}
             ${{ secrets.ALIYUN_REGISTRY }}/${{ env.NAMESPACE }}/${{ github.event.inputs.component }}:latest
