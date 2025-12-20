@@ -1,0 +1,60 @@
+name: Manual Component Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: '🚀 选择要构建的组件'
+        required: true
+        default: 'nginx'
+        type: choice
+        options:
+          - nginx
+          - jenkins
+          - nodejs
+          - python
+      image_tag:
+        description: '🏷️ 镜像版本号 (默认为 latest)'
+        required: true
+        default: 'latest'
+        type: string
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    
+    # 定义环境变量方便复用
+    env:
+      REGISTRY: registry.cn-hangzhou.aliyuncs.com
+      NAMESPACE: 你的命名空间  # 修改为你的阿里云命名空间
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 1. 登录阿里云
+      - name: Login to Aliyun
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.ALIYUN_USERNAME }}
+          password: ${{ secrets.ALIYUN_PASSWORD }}
+
+      # 2. 预检查：确保 Dockerfile 存在，避免报错
+      - name: Check Dockerfile existence
+        run: |
+          if [ ! -f "./${{ github.event.inputs.component }}/Dockerfile" ]; then
+            echo "❌ Error: ./${{ github.event.inputs.component }}/Dockerfile 不存在！"
+            exit 1
+          fi
+
+      # 3. 构建并推送
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ github.event.inputs.component }}/
+          file: ./${{ github.event.inputs.component }}/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ github.event.inputs.component }}:${{ github.event.inputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ github.event.inputs.component }}:latest
