@@ -1,5 +1,5 @@
 mysql:8.4.7
 nginx:1.29.4
-eclipse-temurin:21.0.9_10-jre-alpine-3.23
+eclipse-temurin:21-jre-alpine-3.23
 eclipse-temurin:21-jdk-jammy
 tonistiigi/binfmt:latest
