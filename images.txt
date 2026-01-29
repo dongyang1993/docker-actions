@@ -1,6 +1,9 @@
 redis:8.4.0
 mysql:8.4.7
 nginx:1.29.4
+nacos/nacos-server:v2.2.3-slim
+nacos/nacos-server:v3.0.3-slim
 eclipse-temurin:21-jre-alpine-3.23
+eclipse-temurin:25-jre-alpine-3.23
 eclipse-temurin:21-jdk-jammy
 tonistiigi/binfmt:latest
